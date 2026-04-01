@@ -203,7 +203,7 @@ giftFrame.Name = "MainGiftFrame"
 giftFrame.Parent = giftScreenGui
 applyMobileScale(giftFrame)
 giftFrame.Visible = false
-giftFrame.Size = UDim2.new(0, 500, 0, 750) -- taller UI
+giftFrame.Size = UDim2.new(0, 500, 0, 820) -- taller background ONLY
 giftFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 giftFrame.BackgroundColor3 = Colors.BgDark
 giftFrame.BorderSizePixel = 0
@@ -223,7 +223,7 @@ Instance.new("UICorner", giftFrame).CornerRadius = UDim.new(0, 16)
 
 local searchContainer = Instance.new("Frame")
 searchContainer.Size = UDim2.new(1, -40, 0, 60) 
-searchContainer.Position = UDim2.new(0, 20, 0, 20)
+searchContainer.Position = UDim2.new(0, 20, 0, 5)
 searchContainer.BackgroundColor3 = Colors.InputBg
 searchContainer.ZIndex = 6
 searchContainer.Parent = giftFrame
@@ -336,7 +336,7 @@ gridContainer.Parent = giftFrame
 -- ✅ ADD HERE
 local scrolling = Instance.new("ScrollingFrame")
 scrolling.Size = UDim2.new(1, 0, 1, -140)
-scrolling.Position = UDim2.new(0, 0, 0, 100)
+scrolling.Position = UDim2.new(0, 0, 0, 70)
 scrolling.CanvasSize = UDim2.new(0, 0, 1.2, 0)
 scrolling.ScrollBarThickness = 4
 scrolling.BackgroundTransparency = 1
