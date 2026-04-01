@@ -1,0 +1,1148 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserService = game:GetService("UserService")
+local Lighting = game:GetService("Lighting")
+
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+---------------------------------------------------------------------
+-- CONFIG & VARIABLES
+---------------------------------------------------------------------
+local CurrentBalance = 0
+local SelectedItem = {
+    Name = "",
+    Price = 0,
+    Image = "" 
+}
+
+local ASSETS = {
+    RobuxIcon        = "rbxthumb://type=Asset&id=11713337409&w=150&h=150", 
+    PremiumRobuxIcon = "rbxthumb://type=Asset&id=15177025368&w=150&h=150", 
+    SuccessIcon      = "rbxthumb://type=Asset&id=17829956139&w=150&h=150",
+    CustomDecal      = "rbxthumb://type=Asset&id=11560341145&w=420&h=420", 
+    PopSound         = "rbxassetid://6895086653", 
+    AngelicSwoosh    = "rbxassetid://6065584826"  
+}
+
+-- Colors for the Main Search UI
+local Colors = {
+    BgDark      = Color3.fromRGB(18, 18, 22),       
+    White       = Color3.fromRGB(250, 250, 250),
+    GreyText    = Color3.fromRGB(150, 150, 160),
+    InputBg     = Color3.fromRGB(28, 28, 34),       
+    ButtonBase  = Color3.fromRGB(0, 100, 255),
+    ConfirmBtn  = Color3.fromRGB(25, 190, 105),     
+    Overlay     = Color3.fromRGB(0, 0, 0)
+}
+
+-- Default Colors specifically for the Buy/Success UI
+local BuyColors = {
+    BgDark      = Color3.fromRGB(30, 30, 35),
+    White       = Color3.fromRGB(255, 255, 255),
+    GreyText    = Color3.fromRGB(200, 200, 200),
+    SubText     = Color3.fromRGB(170, 170, 175), -- Matches the grey price text in Roblox CoreGUI
+    ButtonBase  = Color3.fromRGB(0, 70, 180),
+    FillColor   = Color3.fromRGB(0, 110, 255)
+}
+
+---------------------------------------------------------------------
+-- UTILITY FUNCTIONS & HOVER EFFECTS
+---------------------------------------------------------------------
+local function applyMobileScale(frame)
+    if isMobile then
+        local scale = Instance.new("UIScale")
+        scale.Scale = 0.85
+        scale.Parent = frame
+    end
+end
+
+local function formatNumber(n)
+    if not n then return "0" end
+    return tostring(math.floor(n)):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+end
+
+local function makeDraggable(frame)
+    local dragging, dragInput, dragStart, startPos
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            TweenService:Create(frame, TweenInfo.new(0.05), {
+                Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            }):Play()
+        end
+    end)
+end
+
+local function createBuyPanel(name, w, h, parent, draggable)
+    local f = Instance.new("Frame") 
+    f.Name = name
+    f.Size = UDim2.new(0, w, 0, h)
+    f.AnchorPoint = Vector2.new(0.5, 0.5)
+    f.Position = UDim2.new(0.5, 0, 0.5, 0)
+    f.BackgroundColor3 = BuyColors.BgDark
+    f.BorderSizePixel = 0
+    f.ZIndex = 20 
+    f.Parent = parent
+    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 10)
+    if draggable then makeDraggable(f) end
+    return f
+end
+
+local function applyHoverScale(obj, targetScaleFactor)
+    local originalSize = obj.Size
+    local targetSize = UDim2.new(originalSize.X.Scale, originalSize.X.Offset + targetScaleFactor, originalSize.Y.Scale, originalSize.Y.Offset + targetScaleFactor)
+    obj.MouseEnter:Connect(function() TweenService:Create(obj, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = targetSize}):Play() end)
+    obj.MouseLeave:Connect(function() TweenService:Create(obj, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = originalSize}):Play() end)
+end
+
+local function fadeGroup(container, targetTransparency, timeInfo)
+    TweenService:Create(container, timeInfo, {BackgroundTransparency = targetTransparency}):Play()
+    for _, v in pairs(container:GetDescendants()) do
+        if v:IsA("TextLabel") or v:IsA("TextBox") then
+            TweenService:Create(v, timeInfo, {TextTransparency = targetTransparency}):Play()
+        elseif v:IsA("ImageLabel") then
+            TweenService:Create(v, timeInfo, {ImageTransparency = targetTransparency}):Play()
+        elseif v:IsA("TextButton") then
+            TweenService:Create(v, timeInfo, {TextTransparency = targetTransparency}):Play()
+            if v.Name == "CloseButton" then
+                TweenService:Create(v, timeInfo, {BackgroundTransparency = 1}):Play()
+            else
+                TweenService:Create(v, timeInfo, {BackgroundTransparency = targetTransparency}):Play()
+            end
+        elseif v:IsA("Frame") and v.Name == "FillBar" then
+            TweenService:Create(v, timeInfo, {BackgroundTransparency = targetTransparency}):Play()
+        end
+    end
+end
+
+---------------------------------------------------------------------
+-- PART A: GUI CONTAINERS & BLUR EFFECTS
+---------------------------------------------------------------------
+local giftScreenGui = Instance.new("ScreenGui")
+giftScreenGui.Name = "GiftInterface"
+giftScreenGui.ResetOnSpawn = false
+giftScreenGui.Parent = playerGui
+giftScreenGui.IgnoreGuiInset = true 
+
+local screenDarken = Instance.new("Frame")
+screenDarken.Name = "ScreenDarken"
+screenDarken.Size = UDim2.new(1, 0, 1, 0)
+screenDarken.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+screenDarken.BackgroundTransparency = 1
+screenDarken.ZIndex = 1
+screenDarken.Visible = false
+screenDarken.Parent = giftScreenGui
+
+local mainBlur = Instance.new("BlurEffect")
+mainBlur.Name = "PremiumGiftBlur"
+mainBlur.Size = 0
+mainBlur.Parent = Lighting
+
+local function toggleMainUI(show)
+    if show then
+        screenDarken.Visible = true
+        TweenService:Create(screenDarken, TweenInfo.new(0.3), {BackgroundTransparency = 0.75}):Play()
+        TweenService:Create(mainBlur, TweenInfo.new(0.3), {Size = 10}):Play()
+    else
+        local tween = TweenService:Create(screenDarken, TweenInfo.new(0.3), {BackgroundTransparency = 1})
+        TweenService:Create(mainBlur, TweenInfo.new(0.3), {Size = 0}):Play()
+        tween:Play()
+        tween.Completed:Connect(function()
+            if screenDarken.BackgroundTransparency == 1 then screenDarken.Visible = false end
+        end)
+    end
+end
+
+local modalOverlay = Instance.new("Frame")
+modalOverlay.Name = "ModalOverlay"
+modalOverlay.Size = UDim2.new(1, 0, 1, 0)
+modalOverlay.BackgroundColor3 = Colors.Overlay
+modalOverlay.BackgroundTransparency = 1 
+modalOverlay.Visible = false
+modalOverlay.ZIndex = 15 
+modalOverlay.Parent = giftScreenGui
+
+---------------------------------------------------------------------
+-- PART B: MAIN SEARCH UI
+---------------------------------------------------------------------
+local giftFrame = Instance.new("Frame")
+giftFrame.Name = "MainGiftFrame"
+giftFrame.Parent = giftScreenGui
+applyMobileScale(giftFrame)
+giftFrame.Visible = false 
+if isMobile then
+    giftFrame.Size = UDim2.new(0.9, 0, 0.85, 0) -- fills screen nicely
+else
+    giftFrame.Size = UDim2.new(0, 440, 0, 820)
+end
+giftFrame.Position = UDim2.new(0.5, 0, 0.55, 0)
+giftFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+giftFrame.BackgroundColor3 = Colors.BgDark 
+giftFrame.BorderSizePixel = 0 
+giftFrame.ZIndex = 5
+
+local giftFrameStroke = Instance.new("UIStroke", giftFrame)
+giftFrameStroke.Color = Color3.fromRGB(45, 45, 55)
+giftFrameStroke.Thickness = 1.5
+Instance.new("UICorner", giftFrame).CornerRadius = UDim.new(0, 16)
+
+local searchContainer = Instance.new("Frame")
+searchContainer.Size = UDim2.new(1, -40, 0, 60) 
+searchContainer.Position = UDim2.new(0, 20, 0, 20)
+searchContainer.BackgroundColor3 = Colors.InputBg
+searchContainer.ZIndex = 6
+searchContainer.Parent = giftFrame
+Instance.new("UICorner", searchContainer).CornerRadius = UDim.new(0, 10)
+local searchStroke = Instance.new("UIStroke", searchContainer)
+searchStroke.Color = Color3.fromRGB(45, 45, 55)
+searchStroke.Thickness = 1.5
+
+local searchProfilePic = Instance.new("ImageLabel")
+searchProfilePic.Size = UDim2.new(0, 36, 0, 36)
+searchProfilePic.Position = UDim2.new(0, 12, 0.5, 0)
+searchProfilePic.AnchorPoint = Vector2.new(0, 0.5)
+searchProfilePic.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+searchProfilePic.Image = "" 
+searchProfilePic.ZIndex = 7
+searchProfilePic.Parent = searchContainer
+Instance.new("UICorner", searchProfilePic).CornerRadius = UDim.new(1, 0)
+local profileStroke = Instance.new("UIStroke", searchProfilePic)
+profileStroke.Color = Color3.fromRGB(60, 60, 70)
+profileStroke.Thickness = 1
+
+local usernameBox = Instance.new("TextBox")
+usernameBox.BackgroundTransparency = 1
+usernameBox.Position = UDim2.new(0, 60, 0, 0) 
+usernameBox.Size = UDim2.new(1, -110, 1, 0) 
+usernameBox.Font = Enum.Font.GothamMedium
+usernameBox.PlaceholderText = "Search username to gift..."
+usernameBox.PlaceholderColor3 = Colors.GreyText
+usernameBox.Text = ""
+usernameBox.TextColor3 = Colors.White
+usernameBox.TextSize = 16
+usernameBox.TextXAlignment = Enum.TextXAlignment.Left
+usernameBox.ZIndex = 7
+usernameBox.Parent = searchContainer
+
+usernameBox.Focused:Connect(function() TweenService:Create(searchStroke, TweenInfo.new(0.3), {Color = Colors.ButtonBase}):Play() end)
+usernameBox.FocusLost:Connect(function() TweenService:Create(searchStroke, TweenInfo.new(0.3), {Color = Color3.fromRGB(45, 45, 55)}):Play() end)
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "GiftCloseButton"
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 22
+closeBtn.TextColor3 = Colors.GreyText
+closeBtn.BackgroundTransparency = 1
+closeBtn.Parent = searchContainer
+closeBtn.AnchorPoint = Vector2.new(1, 0.5) 
+closeBtn.Position = UDim2.new(1, -10, 0.5, 0) 
+closeBtn.Size = UDim2.new(0, 32, 0, 32) 
+closeBtn.ZIndex = 7
+applyHoverScale(closeBtn, 4) 
+
+local centerAvatarBtn = Instance.new("ImageLabel")
+centerAvatarBtn.BackgroundTransparency = 1 
+centerAvatarBtn.Position = UDim2.new(0.5, 0, 0, 100) 
+centerAvatarBtn.AnchorPoint = Vector2.new(0.5, 0)
+if isMobile then
+    centerAvatarBtn.Size = UDim2.new(0, 200, 0, 200)
+    centerAvatarBtn.Position = UDim2.new(0.5, 0, 0, 90)
+else
+    centerAvatarBtn.Size = UDim2.new(0, 320, 0, 320)
+end
+centerAvatarBtn.Image = "" 
+centerAvatarBtn.Visible = false 
+centerAvatarBtn.ZIndex = 6
+centerAvatarBtn.Parent = giftFrame
+
+local selectedAmountLabel = Instance.new("TextLabel")
+selectedAmountLabel.Text = "20,000 Robux"
+selectedAmountLabel.Font = Enum.Font.GothamBold
+selectedAmountLabel.TextSize = 18
+selectedAmountLabel.TextColor3 = Colors.White
+selectedAmountLabel.BackgroundTransparency = 1
+selectedAmountLabel.Position = UDim2.new(0.5, 0, 0, 420)
+selectedAmountLabel.AnchorPoint = Vector2.new(0.5, 0)
+selectedAmountLabel.Size = UDim2.new(1, 0, 0, 20)
+selectedAmountLabel.TextXAlignment = Enum.TextXAlignment.Center
+selectedAmountLabel.ZIndex = 6
+selectedAmountLabel.Parent = giftFrame
+
+local displayNameLabel = Instance.new("TextLabel")
+displayNameLabel.Text = "" 
+displayNameLabel.Font = Enum.Font.GothamBold
+displayNameLabel.TextSize = 22
+displayNameLabel.TextColor3 = Colors.White
+displayNameLabel.BackgroundTransparency = 1
+displayNameLabel.Position = UDim2.new(0.5, 0, 0, 445)
+displayNameLabel.AnchorPoint = Vector2.new(0.5, 0)
+displayNameLabel.Size = UDim2.new(1, 0, 0, 25)
+displayNameLabel.TextXAlignment = Enum.TextXAlignment.Center
+displayNameLabel.ZIndex = 6
+displayNameLabel.Parent = giftFrame
+
+local usernameLabel = Instance.new("TextLabel")
+usernameLabel.Text = "" 
+usernameLabel.Font = Enum.Font.Gotham
+usernameLabel.TextSize = 15
+usernameLabel.TextColor3 = Colors.GreyText
+usernameLabel.BackgroundTransparency = 1
+usernameLabel.Position = UDim2.new(0.5, 0, 0, 470)
+usernameLabel.AnchorPoint = Vector2.new(0.5, 0)
+usernameLabel.Size = UDim2.new(1, 0, 0, 15)
+usernameLabel.TextXAlignment = Enum.TextXAlignment.Center
+usernameLabel.ZIndex = 6
+usernameLabel.Parent = giftFrame
+
+local gridContainer = Instance.new("Frame")
+if isMobile then
+    gridContainer.Size = UDim2.new(0.9, 0, 0, 160)
+else
+    gridContainer.Size = UDim2.new(0.9, 0, 0, 190)
+end
+gridContainer.Position = UDim2.new(0.5, 0, 0, 520)
+gridContainer.AnchorPoint = Vector2.new(0.5, 0)
+gridContainer.BackgroundTransparency = 1
+gridContainer.ZIndex = 6
+gridContainer.Parent = giftFrame
+
+local gridLayout = Instance.new("UIGridLayout")
+if isMobile then
+    gridLayout.CellSize = UDim2.new(0.48, 0, 0, 70)
+else
+    gridLayout.CellSize = UDim2.new(0.48, 0, 0, 85)
+end
+gridLayout.CellPadding = UDim2.new(0.04, 0, 0, 12)
+gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+gridLayout.Parent = gridContainer
+
+local amounts = {20000, 50000, 200000, 500000}
+local gridButtons = {}
+
+for i, amt in ipairs(amounts) do
+    local btn = Instance.new("TextButton")
+    btn.Text = ""
+    btn.BackgroundColor3 = Colors.InputBg
+    btn.LayoutOrder = i
+    btn.ZIndex = 7
+    btn.Parent = gridContainer
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+    
+    local stroke = Instance.new("UIStroke", btn)
+    stroke.Name = "GridStroke"
+    stroke.Color = Color3.fromRGB(45, 45, 55)
+    stroke.Thickness = 1.5
+    
+    local iconContainer = Instance.new("Frame", btn)
+    iconContainer.BackgroundTransparency = 1
+    iconContainer.Size = UDim2.new(1, 0, 0.6, 0)
+    iconContainer.ZIndex = 8 
+
+    local currentIconAsset = (amt >= 200000) and ASSETS.PremiumRobuxIcon or ASSETS.RobuxIcon
+    local iconCount = (amt == 50000 or amt == 500000) and 3 or 1
+
+    if iconCount == 1 then
+        local icon = Instance.new("ImageLabel", iconContainer)
+        icon.Image = currentIconAsset
+        icon.BackgroundTransparency = 1
+        icon.Size = UDim2.new(0, 32, 0, 32)
+        icon.Position = UDim2.new(0.5, 0, 0.58, 0)
+        icon.AnchorPoint = Vector2.new(0.5, 0.5)
+        icon.ZIndex = 9 
+    else
+        for j = 1, 3 do
+            local icon = Instance.new("ImageLabel", iconContainer)
+            icon.Image = currentIconAsset
+            icon.BackgroundTransparency = 1
+            icon.Size = UDim2.new(0, 22, 0, 22)
+            icon.AnchorPoint = Vector2.new(0.5, 0.5)
+            icon.ZIndex = 9 
+            if j == 1 then 
+                icon.Position = UDim2.new(0.5, 0, 0.42, 0)
+            elseif j == 2 then 
+                icon.Position = UDim2.new(0.38, 0, 0.76, 0)
+            else 
+                icon.Position = UDim2.new(0.62, 0, 0.76, 0) 
+            end
+        end
+    end
+    
+    local text = Instance.new("TextLabel", btn)
+    text.Text = formatNumber(amt) .. " Robux" 
+    text.Font = Enum.Font.GothamBold
+    text.TextSize = 14
+    text.TextColor3 = Colors.White
+    text.BackgroundTransparency = 1
+    text.Size = UDim2.new(1, 0, 0, 20)
+    text.Position = UDim2.new(0, 0, 0.68, 0)
+    text.ZIndex = 9 
+
+    btn.MouseEnter:Connect(function()
+        if SelectedItem.Price ~= amt then
+            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 35, 42)}):Play()
+        end
+    end)
+    btn.MouseLeave:Connect(function()
+        if SelectedItem.Price ~= amt then
+            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Colors.InputBg}):Play()
+        end
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        SelectedItem.Price = amt
+        SelectedItem.Name = text.Text
+        SelectedItem.Image = currentIconAsset
+        selectedAmountLabel.Text = text.Text 
+        
+        for _, b in ipairs(gridButtons) do
+            local bStroke = b:FindFirstChild("GridStroke")
+            if bStroke then
+                TweenService:Create(bStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(45, 45, 55), Thickness = 1.5}):Play()
+            end
+            TweenService:Create(b, TweenInfo.new(0.2), {BackgroundColor3 = Colors.InputBg}):Play()
+        end
+        
+        TweenService:Create(stroke, TweenInfo.new(0.2), {Color = Colors.ButtonBase, Thickness = 2.5}):Play()
+        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(20, 35, 60)}):Play()
+    end)
+    
+    table.insert(gridButtons, btn)
+end
+
+SelectedItem.Price = amounts[1]
+SelectedItem.Name = formatNumber(amounts[1]) .. " Robux"
+SelectedItem.Image = ASSETS.RobuxIcon
+selectedAmountLabel.Text = SelectedItem.Name
+
+local firstStroke = gridButtons[1]:FindFirstChild("GridStroke")
+if firstStroke then
+    firstStroke.Color = Colors.ButtonBase
+    firstStroke.Thickness = 2.5
+end
+gridButtons[1].BackgroundColor3 = Color3.fromRGB(20, 35, 60)
+
+local confirmBtn = Instance.new("TextButton")
+confirmBtn.Name = "ConfirmButton"
+confirmBtn.Text = "CONFIRM GIFT"
+confirmBtn.Font = Enum.Font.GothamBlack
+confirmBtn.TextSize = 18
+confirmBtn.TextColor3 = Color3.fromRGB(15, 45, 25) 
+confirmBtn.BackgroundColor3 = Colors.ConfirmBtn
+if isMobile then
+    confirmBtn.Size = UDim2.new(1, -40, 0, 45)
+else
+    confirmBtn.Size = UDim2.new(1, -60, 0, 55)
+end
+confirmBtn.Position = UDim2.new(0.5, 0, 1, -30)
+confirmBtn.AnchorPoint = Vector2.new(0.5, 1)
+confirmBtn.ZIndex = 7
+confirmBtn.Visible = false
+confirmBtn.Parent = giftFrame
+Instance.new("UICorner", confirmBtn).CornerRadius = UDim.new(0, 10)
+local btnShadow = Instance.new("UIStroke", confirmBtn)
+btnShadow.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+btnShadow.Color = Color3.fromRGB(15, 120, 60)
+btnShadow.Thickness = 2
+applyHoverScale(confirmBtn, 4) 
+
+confirmBtn.MouseEnter:Connect(function() TweenService:Create(confirmBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 210, 120)}):Play() end)
+confirmBtn.MouseLeave:Connect(function() TweenService:Create(confirmBtn, TweenInfo.new(0.2), {BackgroundColor3 = Colors.ConfirmBtn}):Play() end)
+
+---------------------------------------------------------------------
+-- PART C: CONFIG, BUY MENU & SUCCESS MENU
+---------------------------------------------------------------------
+
+-- 1. Wallet Config
+local setFrame = Instance.new("Frame")
+setFrame.Name = "SetRobux"
+setFrame.Size = UDim2.new(0, 260, 0, 180) 
+setFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+setFrame.Position = UDim2.new(0.2, 0, 0.8, 0)
+setFrame.BackgroundColor3 = Colors.BgDark 
+setFrame.BorderSizePixel = 0
+setFrame.ZIndex = 10
+setFrame.Parent = giftScreenGui
+Instance.new("UICorner", setFrame).CornerRadius = UDim.new(0, 12)
+makeDraggable(setFrame)
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Text = "The Biryukov: Robux Edition"
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 16
+titleLabel.TextColor3 = Colors.White
+titleLabel.BackgroundTransparency = 1
+titleLabel.Size = UDim2.new(1, -30, 0, 45)
+titleLabel.Position = UDim2.new(0, 15, 0, 0)
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.ZIndex = 11
+titleLabel.Parent = setFrame
+
+local inputContainerRobux = Instance.new("Frame")
+inputContainerRobux.BackgroundColor3 = Colors.InputBg
+inputContainerRobux.Size = UDim2.new(0.9, 0, 0, 45)
+inputContainerRobux.Position = UDim2.new(0.5, 0, 0.38, 0)
+inputContainerRobux.AnchorPoint = Vector2.new(0.5, 0)
+inputContainerRobux.ZIndex = 11
+inputContainerRobux.Parent = setFrame
+Instance.new("UICorner", inputContainerRobux).CornerRadius = UDim.new(0, 8)
+
+local inputRobux = Instance.new("TextBox")
+inputRobux.PlaceholderText = "Enter Amount"
+inputRobux.Text = ""
+inputRobux.Font = Enum.Font.GothamSemibold
+inputRobux.TextSize = 16
+inputRobux.TextColor3 = Colors.White
+inputRobux.PlaceholderColor3 = Color3.fromRGB(130, 130, 135)
+inputRobux.BackgroundTransparency = 1
+inputRobux.Size = UDim2.new(1, -20, 1, 0)
+inputRobux.Position = UDim2.new(0, 10, 0, 0)
+inputRobux.TextXAlignment = Enum.TextXAlignment.Center
+inputRobux.ZIndex = 12
+inputRobux.Parent = inputContainerRobux
+
+local setBtn = Instance.new("TextButton")
+setBtn.Text = "Set Balance"
+setBtn.Font = Enum.Font.GothamBold
+setBtn.TextColor3 = Colors.White
+setBtn.BackgroundColor3 = Colors.ButtonBase 
+setBtn.Size = UDim2.new(0.9, 0, 0, 40)
+setBtn.Position = UDim2.new(0.5, 0, 0.72, 0)
+setBtn.AnchorPoint = Vector2.new(0.5, 0)
+setBtn.ZIndex = 11
+setBtn.Parent = setFrame
+Instance.new("UICorner", setBtn).CornerRadius = UDim.new(0, 8)
+
+-- 2. Buy Frame (NO STROKE, BUILDERSANS FONT)
+local buyWidth = isMobile and 340 or 450
+local buyHeight = isMobile and 200 or 225
+
+local buyFrame = createBuyPanel("BuyFrame", buyWidth, buyHeight, giftScreenGui, false)
+applyMobileScale(buyFrame)
+buyFrame.Visible = false
+
+local bTitle = Instance.new("TextLabel")
+bTitle.Text = "Buy item"
+bTitle.Font = Enum.Font.BuilderSansBold
+bTitle.TextSize = 20
+bTitle.TextColor3 = BuyColors.White
+bTitle.BackgroundTransparency = 1
+bTitle.Size = UDim2.new(0, 150, 0, 30)
+bTitle.Position = UDim2.new(0, 20, 0, 10)
+bTitle.TextXAlignment = Enum.TextXAlignment.Left
+bTitle.ZIndex = 21
+bTitle.Parent = buyFrame
+
+local headerContainer = Instance.new("Frame")
+headerContainer.BackgroundTransparency = 1
+headerContainer.Size = UDim2.new(0, 250, 0, 30)
+headerContainer.AnchorPoint = Vector2.new(1, 0)
+headerContainer.Position = UDim2.new(1, -15, 0, 10)
+headerContainer.ZIndex = 21
+headerContainer.Parent = buyFrame
+
+local headerLayout = Instance.new("UIListLayout")
+headerLayout.Parent = headerContainer
+headerLayout.FillDirection = Enum.FillDirection.Horizontal
+headerLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+headerLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+headerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+headerLayout.Padding = UDim.new(0, 8)
+
+local closeX = Instance.new("TextButton")
+closeX.Name = "CloseButton" 
+closeX.Text = "X"
+closeX.Font = Enum.Font.BuilderSansMedium
+closeX.TextSize = 20
+closeX.TextColor3 = BuyColors.White
+closeX.BackgroundTransparency = 1 
+closeX.AutoButtonColor = false       
+closeX.Size = UDim2.new(0, 25, 0, 25)
+closeX.LayoutOrder = 3
+closeX.ZIndex = 21
+closeX.Parent = headerContainer
+
+local rText = Instance.new("TextLabel")
+rText.Text = "" 
+rText.Font = Enum.Font.BuilderSansMedium
+rText.TextSize = 14
+rText.TextColor3 = BuyColors.White
+rText.BackgroundTransparency = 1
+rText.AutomaticSize = Enum.AutomaticSize.X
+rText.Size = UDim2.new(0, 0, 1, 0)
+rText.LayoutOrder = 2
+rText.ZIndex = 21
+rText.Parent = headerContainer
+
+local rIcon = Instance.new("ImageLabel")
+rIcon.Image = ASSETS.RobuxIcon
+rIcon.BackgroundTransparency = 1
+rIcon.Size = UDim2.new(0, 14, 0, 14) -- Made smaller to match CoreGUI
+rIcon.LayoutOrder = 1
+rIcon.ZIndex = 21
+rIcon.Parent = headerContainer
+
+local itemImg = Instance.new("ImageLabel")
+itemImg.Image = "" 
+itemImg.BackgroundTransparency = 1
+itemImg.Size = UDim2.new(0, 55, 0, 55) 
+itemImg.Position = UDim2.new(0, 42, 0, 60) 
+itemImg.ZIndex = 21
+itemImg.Parent = buyFrame
+Instance.new("UICorner", itemImg).CornerRadius = UDim.new(0, 8)
+
+local infoContainer = Instance.new("Frame")
+infoContainer.Name = "InfoContainer"
+infoContainer.BackgroundTransparency = 1
+infoContainer.Position = UDim2.new(0, 115, 0, 65) 
+infoContainer.Size = UDim2.new(1, -135, 0, 0)        
+infoContainer.AutomaticSize = Enum.AutomaticSize.Y 
+infoContainer.ZIndex = 21
+infoContainer.Parent = buyFrame
+Instance.new("UIListLayout", infoContainer).SortOrder = Enum.SortOrder.LayoutOrder
+infoContainer.UIListLayout.Padding = UDim.new(0, 5) 
+
+local iName = Instance.new("TextLabel")
+iName.Text = "" 
+iName.Font = Enum.Font.BuilderSansMedium
+iName.TextSize = 18 
+iName.TextColor3 = BuyColors.White
+iName.BackgroundTransparency = 1
+iName.Size = UDim2.new(1, 0, 0, 0)
+iName.AutomaticSize = Enum.AutomaticSize.Y
+iName.TextWrapped = true
+iName.TextXAlignment = Enum.TextXAlignment.Left
+iName.TextYAlignment = Enum.TextYAlignment.Top
+iName.LayoutOrder = 1
+iName.ZIndex = 21
+iName.Parent = infoContainer
+
+local priceRow = Instance.new("Frame")
+priceRow.BackgroundTransparency = 1
+priceRow.Size = UDim2.new(1, 0, 0, 20) 
+priceRow.LayoutOrder = 2
+priceRow.ZIndex = 21
+priceRow.Parent = infoContainer
+
+local pIcon = Instance.new("ImageLabel")
+pIcon.Image = ASSETS.RobuxIcon
+pIcon.BackgroundTransparency = 1
+pIcon.ImageColor3 = BuyColors.SubText -- Grey icon
+pIcon.Size = UDim2.new(0, 14, 0, 14) -- Made smaller
+pIcon.Position = UDim2.new(0, 0, 0.5, 0)
+pIcon.AnchorPoint = Vector2.new(0, 0.5) 
+pIcon.ZIndex = 21
+pIcon.Parent = priceRow
+
+local pText = Instance.new("TextLabel")
+pText.Text = "" 
+pText.Font = Enum.Font.BuilderSans
+pText.TextSize = 14
+pText.TextColor3 = BuyColors.SubText -- Grey text
+pText.BackgroundTransparency = 1
+pText.Size = UDim2.new(1, -20, 1, 0)
+pText.Position = UDim2.new(0, 20, 0, 0)
+pText.TextXAlignment = Enum.TextXAlignment.Left
+pText.ZIndex = 21
+pText.Parent = priceRow
+
+local buyBtn = Instance.new("TextButton")
+buyBtn.Text = "" 
+buyBtn.BackgroundColor3 = BuyColors.ButtonBase 
+buyBtn.Size = UDim2.new(0.9, 0, 0, 42.5) 
+buyBtn.Position = UDim2.new(0.05, 0, 0.73, 0)
+buyBtn.ClipsDescendants = true
+buyBtn.ZIndex = 21
+buyBtn.AutoButtonColor = false 
+buyBtn.Parent = buyFrame
+Instance.new("UICorner", buyBtn).CornerRadius = UDim.new(0, 8)
+
+local fillBar = Instance.new("Frame")
+fillBar.Name = "FillBar"
+fillBar.BackgroundColor3 = BuyColors.FillColor 
+fillBar.BorderSizePixel = 0
+fillBar.Size = UDim2.new(0, 0, 1, 0)
+fillBar.ZIndex = 22
+fillBar.Parent = buyBtn 
+Instance.new("UICorner", fillBar).CornerRadius = UDim.new(0, 8) 
+
+local btnLabel = Instance.new("TextLabel")
+btnLabel.Text = "Buy"
+btnLabel.Font = Enum.Font.BuilderSansBold
+btnLabel.TextSize = 18
+btnLabel.TextColor3 = BuyColors.White
+btnLabel.BackgroundTransparency = 1
+btnLabel.Size = UDim2.new(1, 0, 1, 0)
+btnLabel.ZIndex = 23
+btnLabel.Parent = buyBtn
+
+-- 3. Success Frame (NO STROKE, BUILDERSANS FONT)
+local successFrame = createBuyPanel("SuccessFrame", buyWidth, buyHeight, giftScreenGui, false)
+applyMobileScale(successFrame)
+successFrame.Visible = false
+
+local sTitle = bTitle:Clone()
+sTitle.Text = "Purchase completed"
+sTitle.Parent = successFrame
+
+local successCloseContainer = Instance.new("Frame", successFrame)
+successCloseContainer.Size = UDim2.new(1, -15, 0, 30)
+successCloseContainer.Position = UDim2.new(0, 0, 0, 12)
+successCloseContainer.BackgroundTransparency = 1
+successCloseContainer.ZIndex = 21
+local sX = closeX:Clone()
+sX.Name = "CloseButton" 
+sX.Position = UDim2.new(1, 0, 0, 0)
+sX.AnchorPoint = Vector2.new(1, 0)
+sX.Parent = successCloseContainer
+
+local bigCheck = Instance.new("ImageLabel")
+bigCheck.Image = ASSETS.SuccessIcon
+bigCheck.BackgroundTransparency = 1
+bigCheck.Size = UDim2.new(0, 35, 0, 35) 
+bigCheck.Position = UDim2.new(0.5, -17, 0.35, 0)
+bigCheck.ZIndex = 21
+bigCheck.Parent = successFrame
+
+local sMsg = Instance.new("TextLabel")
+sMsg.Text = "" 
+sMsg.Font = Enum.Font.BuilderSans
+sMsg.TextSize = 16
+sMsg.TextColor3 = BuyColors.White
+sMsg.BackgroundTransparency = 1
+sMsg.TextWrapped = true                  
+sMsg.Size = UDim2.new(0.9, 0, 0, 40)    
+sMsg.AnchorPoint = Vector2.new(0.5, 0) 
+sMsg.Position = UDim2.new(0.5, 0, 0.53, 0) 
+sMsg.TextXAlignment = Enum.TextXAlignment.Center
+sMsg.TextYAlignment = Enum.TextYAlignment.Top 
+sMsg.ZIndex = 21
+sMsg.Parent = successFrame
+
+local okBtn = Instance.new("TextButton")
+okBtn.Text = "OK"
+okBtn.Font = Enum.Font.BuilderSansBold
+okBtn.TextSize = 18 
+okBtn.TextColor3 = BuyColors.White
+okBtn.BackgroundColor3 = BuyColors.FillColor
+okBtn.Size = UDim2.new(0.9, 0, 0, 40)
+okBtn.Position = UDim2.new(0.05, 0, 0.73, 0) 
+okBtn.ZIndex = 21
+okBtn.Parent = successFrame
+Instance.new("UICorner", okBtn).CornerRadius = UDim.new(0, 8)
+
+---------------------------------------------------------------------
+-- PART D: LOGIC, INTEGRATION & REALISTIC VFX
+---------------------------------------------------------------------
+
+local fillTween
+local debounce = false 
+local isFillComplete = false
+
+local function toggleOverlay(show)
+    modalOverlay.Visible = true
+    local targetAlpha = show and 0.6 or 1
+    local tInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(modalOverlay, tInfo, {BackgroundTransparency = targetAlpha})
+    tween:Play()
+    if not show then
+        tween.Completed:Connect(function()
+            if modalOverlay.BackgroundTransparency == 1 then modalOverlay.Visible = false end
+        end)
+    end
+end
+
+local function startFill()
+    isFillComplete = false 
+    fillBar.Size = UDim2.new(0, 0, 1, 0) 
+    fillBar.Visible = true
+    fillBar.BackgroundTransparency = 0 
+    
+    local tweenInfo = TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In) 
+    fillTween = TweenService:Create(fillBar, tweenInfo, {Size = UDim2.new(1, 0, 1, 0)})
+    fillTween.Completed:Connect(function(playbackState)
+        if playbackState == Enum.PlaybackState.Completed then isFillComplete = true end
+    end)
+    fillTween:Play()
+end
+
+local function updateProfileImage(username)
+    if username == "" or username == nil then
+        searchProfilePic.Image = "" 
+        centerAvatarBtn.Visible = false
+        confirmBtn.Visible = false
+        displayNameLabel.Text = ""
+        usernameLabel.Text = ""
+        return
+    end
+
+    displayNameLabel.Text = "Searching..."
+    usernameLabel.Text = ""
+
+    task.spawn(function()
+        local success, userId = pcall(function() return Players:GetUserIdFromNameAsync(username) end)
+
+        if success and userId then
+            local pop = Instance.new("Sound")
+            pop.SoundId = ASSETS.PopSound
+            pop.Volume = 0.5
+            pop.Parent = giftFrame
+            pop:Play()
+            game.Debris:AddItem(pop, 1)
+
+            local content, isReady = Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+            if isReady then searchProfilePic.Image = content end
+            
+            local bodyContent, bodyReady = Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.AvatarThumbnail, Enum.ThumbnailSize.Size420x420)
+            if bodyReady then 
+                centerAvatarBtn.Image = bodyContent 
+                centerAvatarBtn.Visible = true
+                confirmBtn.Visible = true
+            end
+
+            local infoSuccess, userInfo = pcall(function() return UserService:GetUserInfosByUserIdsAsync({userId}) end)
+
+            if infoSuccess and userInfo[1] then
+                displayNameLabel.Text = userInfo[1].DisplayName
+                usernameLabel.Text = "@" .. userInfo[1].Username
+            else
+                displayNameLabel.Text = username
+                usernameLabel.Text = "@" .. username
+            end
+        else
+            searchProfilePic.Image = ""
+            centerAvatarBtn.Visible = false
+            confirmBtn.Visible = false
+            displayNameLabel.Text = "Player not found"
+            usernameLabel.Text = ""
+        end
+    end)
+end
+
+local function PlayCoolVFX()
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    giftScreenGui.Enabled = false
+    
+    local gameBlurs = {}
+    for _, child in ipairs(Lighting:GetChildren()) do
+        if child:IsA("BlurEffect") and child.Name ~= "PremiumGiftBlur" then
+            table.insert(gameBlurs, {effect = child, wasEnabled = child.Enabled})
+            child.Enabled = false
+        end
+    end
+
+    local dynamicLight = Instance.new("PointLight")
+    dynamicLight.Color = Color3.fromRGB(80, 255, 120)
+    dynamicLight.Range = 25
+    dynamicLight.Brightness = 10
+    dynamicLight.Parent = hrp
+
+    local hl = Instance.new("Highlight")
+    hl.FillColor = Color3.fromRGB(50, 255, 100)
+    hl.OutlineColor = Color3.fromRGB(200, 255, 200)
+    hl.FillTransparency = 0.3
+    hl.OutlineTransparency = 0
+    hl.Parent = char
+
+    local sfx = Instance.new("Sound")
+    sfx.SoundId = "rbxassetid://5563910008" 
+    sfx.Volume = 2
+    sfx.Parent = hrp
+    sfx:Play()
+
+    local baseAtt = Instance.new("Attachment")
+    baseAtt.Position = Vector3.new(0, -2, 0)
+    baseAtt.Parent = hrp
+    
+    local aura = Instance.new("ParticleEmitter")
+    aura.Texture = "rbxassetid://1047060178" 
+    aura.Color = ColorSequence.new(Color3.fromRGB(50, 255, 100))
+    aura.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 5), NumberSequenceKeypoint.new(1, 8)})
+    aura.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.1, 0.2), NumberSequenceKeypoint.new(1, 1)})
+    aura.LightEmission = 0.8 
+    aura.ZOffset = 1
+    aura.EmissionDirection = Enum.NormalId.Top
+    aura.Speed = NumberRange.new(5, 10)
+    aura.Drag = 1
+    aura.Lifetime = NumberRange.new(1, 1.5)
+    aura.Rotation = NumberRange.new(0, 360)
+    aura.RotSpeed = NumberRange.new(-30, 30)
+    aura.Rate = 0
+    aura.Parent = baseAtt
+
+    local sparks = Instance.new("ParticleEmitter")
+    sparks.Texture = "rbxassetid://7499388836" 
+    sparks.Color = ColorSequence.new(Color3.fromRGB(150, 255, 150))
+    sparks.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.1, 0.5), NumberSequenceKeypoint.new(1, 0)})
+    sparks.LightEmission = 1 
+    sparks.EmissionDirection = Enum.NormalId.Top
+    sparks.SpreadAngle = Vector2.new(180, 180)
+    sparks.Speed = NumberRange.new(25, 45) 
+    sparks.Drag = 3
+    sparks.Acceleration = Vector3.new(0, 10, 0)
+    sparks.Lifetime = NumberRange.new(0.5, 1.2)
+    sparks.Rate = 0
+    sparks.Parent = hrp
+
+    local confettiAtt = Instance.new("Attachment")
+    confettiAtt.Position = Vector3.new(0, 5, 0) 
+    confettiAtt.Parent = hrp
+    
+    local colors = {
+        Color3.fromRGB(255, 70, 70), Color3.fromRGB(70, 255, 70), Color3.fromRGB(70, 150, 255),
+        Color3.fromRGB(255, 220, 70), Color3.fromRGB(200, 70, 255), Color3.fromRGB(255, 255, 255)
+    }
+    
+    local emitters = {}
+    for _, color in ipairs(colors) do
+        local pe = Instance.new("ParticleEmitter")
+        pe.Texture = "rbxassetid://1643328514"
+        pe.Color = ColorSequence.new(color)
+        pe.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.25), NumberSequenceKeypoint.new(1, 0.25)})
+        pe.EmissionDirection = Enum.NormalId.Top
+        pe.Speed = NumberRange.new(45, 70)
+        pe.SpreadAngle = Vector2.new(60, 60)
+        pe.Drag = 2 
+        pe.Acceleration = Vector3.new(0, -45, 0)
+        pe.Rate = 0
+        pe.Lifetime = NumberRange.new(2, 3)
+        pe.Rotation = NumberRange.new(0, 360)
+        pe.RotSpeed = NumberRange.new(-500, 500) 
+        pe.LightEmission = 0.2
+        pe.Parent = confettiAtt
+        table.insert(emitters, pe)
+    end
+
+    local giantDecalAtt = Instance.new("Attachment")
+    giantDecalAtt.Position = Vector3.new(0, 0, 0) 
+    giantDecalAtt.Parent = hrp
+
+    local giantDecal = Instance.new("ParticleEmitter")
+    giantDecal.Texture = ASSETS.CustomDecal
+    giantDecal.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.3, 1.5), NumberSequenceKeypoint.new(1, 2.5)})
+    giantDecal.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.15, 0), NumberSequenceKeypoint.new(0.6, 0), NumberSequenceKeypoint.new(1, 1)})
+    giantDecal.EmissionDirection = Enum.NormalId.Front
+    giantDecal.Speed = NumberRange.new(0) 
+    giantDecal.Drag = 0
+    giantDecal.Lifetime = NumberRange.new(0.8, 0.8)
+    giantDecal.Rotation = NumberRange.new(-5, 5)
+    giantDecal.RotSpeed = NumberRange.new(-5, 5) 
+    giantDecal.LightEmission = 1 
+    giantDecal.ZOffset = 5 
+    giantDecal.Rate = 0
+    giantDecal.Parent = giantDecalAtt
+
+    local decalSfx = Instance.new("Sound")
+    decalSfx.SoundId = ASSETS.AngelicSwoosh
+    decalSfx.Volume = 1.2
+    decalSfx.Parent = hrp
+    decalSfx:Play()
+
+    aura:Emit(40)
+    sparks:Emit(100)
+    for _, pe in ipairs(emitters) do pe:Emit(60) end
+    giantDecal:Emit(1)
+
+    task.spawn(function()
+        local tsInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        TweenService:Create(hl, tsInfo, {FillTransparency = 1, OutlineTransparency = 1}):Play()
+        TweenService:Create(dynamicLight, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Brightness = 0, Range = 0}):Play()
+        
+        task.wait(1.5) 
+        
+        hl:Destroy()
+        dynamicLight:Destroy()
+        baseAtt:Destroy()
+        confettiAtt:Destroy()
+        sfx:Destroy()
+        giantDecalAtt:Destroy()
+        decalSfx:Destroy()
+
+        giftScreenGui.Enabled = true
+        for _, bData in ipairs(gameBlurs) do
+            if bData.effect.Parent then bData.effect.Enabled = bData.wasEnabled end
+        end
+        
+        giftFrame.Visible = true
+        toggleMainUI(true)
+        usernameBox.Text = ""
+        updateProfileImage("")
+    end)
+end
+
+local function SetupSidebarButton()
+    task.spawn(function()
+        local btnsFolder = playerGui:WaitForChild("Buttons", 10)
+        if not btnsFolder then return end
+        local leftFolder = btnsFolder:WaitForChild("Left", 10)
+        if not leftFolder then return end
+        
+        local communityBtn = leftFolder:WaitForChild("OpenCommunityOutfits", 10)
+        if communityBtn then
+            local newBtn = communityBtn:Clone()
+            newBtn.Name = "OpenGiftRobux"
+            newBtn.Parent = leftFolder
+            
+            for _, child in pairs(newBtn:GetDescendants()) do
+                if child:IsA("TextLabel") or child:IsA("TextBox") then
+                    if child.Text:match("Outfits") or child.Text:match("Community") then child.Text = "Gift Robux" end
+                end
+            end
+            if newBtn:IsA("TextButton") or newBtn:IsA("TextLabel") then newBtn.Text = "Gift Robux" end
+            
+            newBtn.MouseButton1Click:Connect(function()
+                giftFrame.Visible = true
+                toggleMainUI(true)
+            end)
+        end
+    end)
+end
+
+setBtn.MouseButton1Click:Connect(function()
+    local bVal = tonumber(inputRobux.Text)
+    if bVal then 
+        CurrentBalance = bVal 
+        setFrame.Visible = false 
+        rText.Text = formatNumber(CurrentBalance)
+        SetupSidebarButton()
+    end
+end)
+
+updateProfileImage("")
+usernameBox.FocusLost:Connect(function() updateProfileImage(usernameBox.Text) end)
+
+closeBtn.MouseButton1Click:Connect(function()
+    giftFrame.Visible = false
+    toggleMainUI(false)
+    usernameBox.Text = ""
+    updateProfileImage("")
+end)
+
+---------------------------------------------------------------------
+-- PART E: BUY LOGIC (WITH TEXT & OVERLAYS)
+---------------------------------------------------------------------
+
+confirmBtn.MouseButton1Click:Connect(function()
+    if debounce then return end
+    giftFrame.Visible = false
+    
+    local targetUser = usernameLabel.Text ~= "" and usernameLabel.Text or ("@" .. usernameBox.Text)
+    
+    local formattedPrice = formatNumber(SelectedItem.Price)
+    local itemNameString = formattedPrice .. " Robux @" .. targetUser:gsub("^@","")
+    
+    iName.Text = itemNameString
+    pText.Text = formattedPrice
+    itemImg.Image = SelectedItem.Image
+    sMsg.Text = "Successfully gifted " .. itemNameString
+
+    rText.Text = formatNumber(CurrentBalance)
+
+    buyFrame.Visible = true
+    buyFrame.BackgroundTransparency = 0
+    fillBar.BackgroundTransparency = 0
+    
+    for _, v in pairs(buyFrame:GetDescendants()) do
+       if v:IsA("TextLabel") or v:IsA("TextBox") then v.TextTransparency = 0
+       elseif v:IsA("ImageLabel") then v.ImageTransparency = 0
+       elseif v:IsA("TextButton") then
+           if v.Name ~= "CloseButton" then v.BackgroundTransparency = 0 end
+           v.TextTransparency = 0
+       end
+    end
+
+    buyFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    toggleOverlay(true) 
+    startFill() 
+end)
+
+buyBtn.MouseButton1Click:Connect(function()
+    if not isFillComplete then return end
+    if not buyFrame.Visible or debounce then return end
+    debounce = true 
+
+    if fillTween then fillTween:Cancel() end
+    fillBar.Visible = false 
+    task.wait(1.5)
+
+    local startPos = buyFrame.Position
+    local downPos = UDim2.new(startPos.X.Scale, startPos.X.Offset, startPos.Y.Scale + 0.02, startPos.Y.Offset)
+    local fadeOutInfo = TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+
+    TweenService:Create(buyFrame, fadeOutInfo, {Position = downPos}):Play()
+    fadeGroup(buyFrame, 1, fadeOutInfo)
+
+    task.wait(0.25) 
+    buyFrame.Visible = false
+    successFrame.Visible = true
+    successFrame.Position = downPos
+    
+    fadeGroup(successFrame, 1, TweenInfo.new(0))
+    
+    CurrentBalance = CurrentBalance - SelectedItem.Price
+    rText.Text = formatNumber(CurrentBalance)
+    
+    TweenService:Create(successFrame, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Position = startPos}):Play()
+    fadeGroup(successFrame, 0, TweenInfo.new(0.25, Enum.EasingStyle.Linear))
+
+    debounce = false 
+end)
+
+okBtn.MouseButton1Click:Connect(function()
+    if not successFrame.Visible or debounce then return end
+    debounce = true 
+    
+    local startPos = successFrame.Position
+    local downPos = UDim2.new(startPos.X.Scale, startPos.X.Offset, startPos.Y.Scale + 0.02, startPos.Y.Offset)
+    local fadeOutInfo = TweenInfo.new(0.25, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+    
+    TweenService:Create(successFrame, fadeOutInfo, {Position = downPos}):Play()
+    fadeGroup(successFrame, 1, fadeOutInfo)
+    
+    toggleOverlay(false)
+    toggleMainUI(false)
+    
+    task.wait(0.25)
+    successFrame.Visible = false
+    
+    PlayCoolVFX()
+    debounce = false
+end)
+
+closeX.MouseButton1Click:Connect(function()
+    if fillTween then fillTween:Cancel() end
+    buyFrame.Visible = false
+    toggleOverlay(false)
+    debounce = false
+    giftFrame.Visible = true
+end)
+
+sX.MouseButton1Click:Connect(function()
+    successFrame.Visible = false
+    toggleOverlay(false)
+    toggleMainUI(false)
+    debounce = false
+    usernameBox.Text = ""
+end)
