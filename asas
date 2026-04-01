@@ -56,7 +56,12 @@ local BuyColors = {
 local function applyMobileScale(frame)
     if isMobile then
         local scale = Instance.new("UIScale")
-        scale.Scale = 0.85
+        
+        local screenSize = workspace.CurrentCamera.ViewportSize
+        local baseHeight = 820 -- your PC UI height
+        local scaleFactor = math.clamp(screenSize.Y / baseHeight, 0.6, 0.85)
+
+        scale.Scale = scaleFactor
         scale.Parent = frame
     end
 end
