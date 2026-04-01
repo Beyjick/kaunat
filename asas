@@ -59,8 +59,8 @@ local function applyMobileScale(frame)
 
         local screenSize = workspace.CurrentCamera.ViewportSize
         
-        local baseWidth = 380
-        local baseHeight = 700
+        local baseWidth = 360
+        local baseHeight = 620
 
         -- 🔥 scale based on BOTH width AND height (THIS FIXES EVERYTHING)
         local scaleX = screenSize.X / baseWidth
@@ -69,7 +69,7 @@ local function applyMobileScale(frame)
         local scaleFactor = math.min(scaleX, scaleY)
 
         -- extra shrink so nothing gets cut off
-        scaleFactor = scaleFactor * 0.65
+        scaleFactor = scaleFactor * 0.60
 
         scale.Scale = scaleFactor
         scale.Parent = frame
@@ -203,7 +203,7 @@ giftFrame.Name = "MainGiftFrame"
 giftFrame.Parent = giftScreenGui
 applyMobileScale(giftFrame)
 giftFrame.Visible = false 
-giftFrame.Size = UDim2.new(0, 380, 0, 700)
+giftFrame.Size = UDim2.new(0, 360, 0, 620)
 giftFrame.Position = UDim2.new(0.5, 0, 0.47, 0)
 giftFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 giftFrame.BackgroundColor3 = Colors.BgDark 
@@ -272,10 +272,9 @@ applyHoverScale(closeBtn, 4)
 
 local centerAvatarBtn = Instance.new("ImageLabel")
 centerAvatarBtn.BackgroundTransparency = 1 
-centerAvatarBtn.Position = UDim2.new(0.5, 0, 0, 100) 
+centerAvatarBtn.Position = UDim2.new(0.5, 0, 0, 70)
 centerAvatarBtn.AnchorPoint = Vector2.new(0.5, 0)
 centerAvatarBtn.Size = UDim2.new(0, 320, 0, 320)
-centerAvatarBtn.Position = UDim2.new(0.5, 0, 0, 100)
 centerAvatarBtn.Image = "" 
 centerAvatarBtn.Visible = false 
 centerAvatarBtn.ZIndex = 6
@@ -322,7 +321,7 @@ usernameLabel.Parent = giftFrame
 
 local gridContainer = Instance.new("Frame")
 gridContainer.Size = UDim2.new(0.9, 0, 0, 190)
-gridContainer.Position = UDim2.new(0.5, 0, 0, 520)
+gridContainer.Position = UDim2.new(0.5, 0, 0, 430)
 gridContainer.AnchorPoint = Vector2.new(0.5, 0)
 gridContainer.BackgroundTransparency = 1
 gridContainer.ZIndex = 6
@@ -330,7 +329,7 @@ gridContainer.Parent = giftFrame
 
 -- ✅ ADD HERE
 local scrolling = Instance.new("ScrollingFrame")
-scrolling.Size = UDim2.new(1, 0, 1, -120)
+scrolling.Size = UDim2.new(1, 0, 1, -140)
 scrolling.Position = UDim2.new(0, 0, 0, 100)
 scrolling.CanvasSize = UDim2.new(0, 0, 1.2, 0)
 scrolling.ScrollBarThickness = 4
