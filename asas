@@ -203,8 +203,8 @@ giftFrame.Name = "MainGiftFrame"
 giftFrame.Parent = giftScreenGui
 applyMobileScale(giftFrame)
 giftFrame.Visible = false 
-giftFrame.Size = UDim2.new(0, 360, 0, 620)
-giftFrame.Position = UDim2.new(0.5, 0, 0.47, 0)
+giftFrame.Size = UDim2.new(0, 500, 0, 500)  -- bigger main UI
+giftFrame.Position = UDim2.new(0.5, 0, 0.5, 50)  -- slightly lower
 giftFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 giftFrame.BackgroundColor3 = Colors.BgDark 
 giftFrame.BorderSizePixel = 0 
