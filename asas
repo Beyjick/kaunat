@@ -61,7 +61,7 @@ local function applyMobileScale(frame)
         
         -- 🔥 use WIDTH instead of height
         local baseWidth = 440
-        local scaleFactor = math.clamp(screenSize.X / baseWidth, 0.48, 0.65)
+        local scaleFactor = math.clamp(screenSize.X / baseWidth, 0.44, 0.58)
 
         scale.Scale = scaleFactor
         scale.Parent = frame
