@@ -56,10 +56,12 @@ local BuyColors = {
 local function applyMobileScale(frame)
     if isMobile then
         local scale = Instance.new("UIScale")
-        
+
         local screenSize = workspace.CurrentCamera.ViewportSize
         local baseHeight = 820 -- your PC UI height
-        local scaleFactor = math.clamp(screenSize.Y / baseHeight, 0.6, 0.85)
+        
+        -- 🔥 better scaling (no weird stretching)
+        local scaleFactor = math.clamp(screenSize.Y / baseHeight, 0.55, 0.75)
 
         scale.Scale = scaleFactor
         scale.Parent = frame
@@ -193,11 +195,7 @@ giftFrame.Name = "MainGiftFrame"
 giftFrame.Parent = giftScreenGui
 applyMobileScale(giftFrame)
 giftFrame.Visible = false 
-if isMobile then
-    giftFrame.Size = UDim2.new(0.9, 0, 0.75, 0) -- fills screen nicely
-else
-    giftFrame.Size = UDim2.new(0, 440, 0, 820)
-end
+giftFrame.Size = UDim2.new(0, 440, 0, 820)
 giftFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 giftFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 giftFrame.BackgroundColor3 = Colors.BgDark 
@@ -268,12 +266,8 @@ local centerAvatarBtn = Instance.new("ImageLabel")
 centerAvatarBtn.BackgroundTransparency = 1 
 centerAvatarBtn.Position = UDim2.new(0.5, 0, 0, 100) 
 centerAvatarBtn.AnchorPoint = Vector2.new(0.5, 0)
-if isMobile then
-    centerAvatarBtn.Size = UDim2.new(0, 200, 0, 200)
-    centerAvatarBtn.Position = UDim2.new(0.5, 0, 0, 90)
-else
-    centerAvatarBtn.Size = UDim2.new(0, 320, 0, 320)
-end
+centerAvatarBtn.Size = UDim2.new(0, 320, 0, 320)
+centerAvatarBtn.Position = UDim2.new(0.5, 0, 0, 100)
 centerAvatarBtn.Image = "" 
 centerAvatarBtn.Visible = false 
 centerAvatarBtn.ZIndex = 6
@@ -319,11 +313,7 @@ usernameLabel.ZIndex = 6
 usernameLabel.Parent = giftFrame
 
 local gridContainer = Instance.new("Frame")
-if isMobile then
-    gridContainer.Size = UDim2.new(0.9, 0, 0, 160)
-else
-    gridContainer.Size = UDim2.new(0.9, 0, 0, 190)
-end
+gridContainer.Size = UDim2.new(0.9, 0, 0, 190)
 gridContainer.Position = UDim2.new(0.5, 0, 0, 520)
 gridContainer.AnchorPoint = Vector2.new(0.5, 0)
 gridContainer.BackgroundTransparency = 1
@@ -347,11 +337,7 @@ usernameLabel.Parent = scrolling
 gridContainer.Parent = scrolling
 
 local gridLayout = Instance.new("UIGridLayout")
-if isMobile then
-    gridLayout.CellSize = UDim2.new(0.48, 0, 0, 70)
-else
-    gridLayout.CellSize = UDim2.new(0.48, 0, 0, 85)
-end
+gridLayout.CellSize = UDim2.new(0.48, 0, 0, 85)
 gridLayout.CellPadding = UDim2.new(0.04, 0, 0, 12)
 gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
 gridLayout.Parent = gridContainer
@@ -468,11 +454,7 @@ confirmBtn.Font = Enum.Font.GothamBlack
 confirmBtn.TextSize = 18
 confirmBtn.TextColor3 = Color3.fromRGB(15, 45, 25) 
 confirmBtn.BackgroundColor3 = Colors.ConfirmBtn
-if isMobile then
-    confirmBtn.Size = UDim2.new(1, -40, 0, 45)
-else
-    confirmBtn.Size = UDim2.new(1, -60, 0, 55)
-end
+confirmBtn.Size = UDim2.new(1, -60, 0, 55)
 confirmBtn.Position = UDim2.new(0.5, 0, 1, -20)
 confirmBtn.AnchorPoint = Vector2.new(0.5, 1)
 confirmBtn.ZIndex = 7
