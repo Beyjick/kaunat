@@ -59,9 +59,17 @@ local function applyMobileScale(frame)
 
         local screenSize = workspace.CurrentCamera.ViewportSize
         
-        -- 🔥 use WIDTH instead of height
         local baseWidth = 440
-        local scaleFactor = math.clamp(screenSize.X / baseWidth, 0.42, 0.55)
+        local baseHeight = 820
+
+        -- 🔥 scale based on BOTH width AND height (THIS FIXES EVERYTHING)
+        local scaleX = screenSize.X / baseWidth
+        local scaleY = screenSize.Y / baseHeight
+
+        local scaleFactor = math.min(scaleX, scaleY)
+
+        -- extra shrink so nothing gets cut off
+        scaleFactor = scaleFactor * 0.80
 
         scale.Scale = scaleFactor
         scale.Parent = frame
