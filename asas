@@ -204,16 +204,16 @@ giftFrame.Parent = giftScreenGui
 applyMobileScale(giftFrame)
 giftFrame.Visible = false
 giftFrame.Size = UDim2.new(0, 500, 0, 820) -- taller background ONLY
-giftFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+giftFrame.AnchorPoint = Vector2.new(0.5, 0) -- TOP CENTER
 giftFrame.BackgroundColor3 = Colors.BgDark
 giftFrame.BorderSizePixel = 0
 giftFrame.ZIndex = 5
 
 -- Dynamic positioning for mobile vs PC
 if UserInputService.TouchEnabled then
-    giftFrame.Position = UDim2.new(0.5, 0, 0.6, 0) -- LOWER (60% down screen)
+    giftFrame.Position = UDim2.new(0.5, 0, 0, 120) -- pushes DOWN from top
 else
-    giftFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    giftFrame.Position = UDim2.new(0.5, 0, 0.5, -410) -- keep centered for PC
 end
 
 local giftFrameStroke = Instance.new("UIStroke", giftFrame)
