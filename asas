@@ -202,13 +202,19 @@ local giftFrame = Instance.new("Frame")
 giftFrame.Name = "MainGiftFrame"
 giftFrame.Parent = giftScreenGui
 applyMobileScale(giftFrame)
-giftFrame.Visible = false 
-giftFrame.Size = UDim2.new(0, 500, 0, 500)  -- bigger main UI
-giftFrame.Position = UDim2.new(0.5, 0, 0.5, 50)  -- slightly lower
+giftFrame.Visible = false
+giftFrame.Size = UDim2.new(0, 500, 0, 600) -- taller UI
 giftFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-giftFrame.BackgroundColor3 = Colors.BgDark 
-giftFrame.BorderSizePixel = 0 
+giftFrame.BackgroundColor3 = Colors.BgDark
+giftFrame.BorderSizePixel = 0
 giftFrame.ZIndex = 5
+
+-- Dynamic positioning for mobile vs PC
+if UserInputService.TouchEnabled then
+    giftFrame.Position = UDim2.new(0.5, 0, 0, 150) -- lower on mobile
+else
+    giftFrame.Position = UDim2.new(0.5, 0, 0.5, 0) -- centered on PC
+end
 
 local giftFrameStroke = Instance.new("UIStroke", giftFrame)
 giftFrameStroke.Color = Color3.fromRGB(45, 45, 55)
