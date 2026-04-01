@@ -211,9 +211,9 @@ giftFrame.ZIndex = 5
 
 -- Dynamic positioning for mobile vs PC
 if UserInputService.TouchEnabled then
-    giftFrame.Position = UDim2.new(0.5, 0, 0, 150) -- lower on mobile
+    giftFrame.Position = UDim2.new(0.5, 0, 0.6, 0) -- LOWER (60% down screen)
 else
-    giftFrame.Position = UDim2.new(0.5, 0, 0.5, 0) -- centered on PC
+    giftFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 end
 
 local giftFrameStroke = Instance.new("UIStroke", giftFrame)
@@ -278,7 +278,7 @@ applyHoverScale(closeBtn, 4)
 
 local centerAvatarBtn = Instance.new("ImageLabel")
 centerAvatarBtn.BackgroundTransparency = 1 
-centerAvatarBtn.Position = UDim2.new(0.5, 0, 0, 120) -- slightly lower than 70
+centerAvatarBtn.Position = UDim2.new(0.5, 0, 0, 60) -- slightly lower than 70
 centerAvatarBtn.AnchorPoint = Vector2.new(0.5, 0)
 centerAvatarBtn.Size = UDim2.new(0, 320, 0, 320)
 centerAvatarBtn.Image = "" 
