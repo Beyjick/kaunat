@@ -58,10 +58,10 @@ local function applyMobileScale(frame)
         local scale = Instance.new("UIScale")
 
         local screenSize = workspace.CurrentCamera.ViewportSize
-        local baseHeight = 820 -- your PC UI height
         
-        -- 🔥 better scaling (no weird stretching)
-        local scaleFactor = math.clamp(screenSize.Y / baseHeight, 0.55, 0.75)
+        -- 🔥 use WIDTH instead of height
+        local baseWidth = 440
+        local scaleFactor = math.clamp(screenSize.X / baseWidth, 0.48, 0.65)
 
         scale.Scale = scaleFactor
         scale.Parent = frame
