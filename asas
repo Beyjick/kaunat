@@ -278,7 +278,7 @@ applyHoverScale(closeBtn, 4)
 
 local centerAvatarBtn = Instance.new("ImageLabel")
 centerAvatarBtn.BackgroundTransparency = 1 
-centerAvatarBtn.Position = UDim2.new(0.5, 0, 0, 85) -- slightly lower than 70
+centerAvatarBtn.Position = UDim2.new(0.5, 0, 0, 60) -- slightly lower than 70
 centerAvatarBtn.AnchorPoint = Vector2.new(0.5, 0)
 centerAvatarBtn.Size = UDim2.new(0, 320, 0, 320)
 centerAvatarBtn.Image = "" 
